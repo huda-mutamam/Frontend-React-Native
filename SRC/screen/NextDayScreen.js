@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -45,9 +45,35 @@ const NextDayScreen = ({ navigation }) => {
 
   // PAKET
   const [itemName, setItemName] = useState("");
+  const [weight, setWeight] = useState("");
   const [notes, setNotes] = useState("");
 
   const [loading, setLoading] = useState(false);
+
+  const PRICE_PER_KG_NEXTDAY = 12000;
+  const NEXTDAY_FEE = 7000;
+
+  const calculatedPrice = useMemo(() => {
+    const actualWeight = parseFloat(weight.toString().replace(",", "."));
+    const effectiveWeight = Math.max(Number.isFinite(actualWeight) ? actualWeight : 0, 1);
+    const roundedWeight = effectiveWeight > 1 ? Math.ceil(effectiveWeight / 0.3) * 0.3 : 1;
+    const base = Number((roundedWeight * PRICE_PER_KG_NEXTDAY).toFixed(0));
+
+    return {
+      billedWeight: Number(roundedWeight.toFixed(1)),
+      base,
+      nextDayFee: NEXTDAY_FEE,
+      total: base + NEXTDAY_FEE,
+    };
+  }, [weight]);
+
+  const paymentDetails = {
+    serviceName: "Pengiriman Next Day",
+    basePrice: calculatedPrice.base.toString(),
+    discount: calculatedPrice.nextDayFee.toString(),
+    total: calculatedPrice.total.toString(),
+    successScreen: "PaymentSuccessScreen",
+  };
 
   const handleSubmit = async () => {
     if (!senderName || !senderPhone || !senderAddress || !receiverName || !receiverPhone || !receiverAddress) {
@@ -69,8 +95,8 @@ const NextDayScreen = ({ navigation }) => {
 
         service_id: 3, // NEXT DAY
 
-        berat: 1,
-        harga: 28000,
+        berat: calculatedPrice.billedWeight,
+        harga: calculatedPrice.total,
 
         jenis_barang: itemName || "Dokumen",
         catatan: notes,
@@ -80,12 +106,7 @@ const NextDayScreen = ({ navigation }) => {
 
       Alert.alert("Berhasil", "Order Next Day berhasil dibuat");
 
-      navigation.navigate("PaymentScreen", {
-        serviceName: "Pengiriman Next Day",
-        basePrice: "28.000",
-        discount: "0",
-        total: "28.000",
-      });
+      navigation.navigate("PaymentScreen", paymentDetails);
     } catch (error) {
       console.log("ERROR:", error.response?.data || error.message);
 
@@ -140,7 +161,18 @@ const NextDayScreen = ({ navigation }) => {
 
         {/* DETAIL BARANG */}
         <FormSection title="Detail Barang">
-          <InputField icon="cube-outline" placeholder="Nama Barang" value={itemName} onChangeText={setItemName} />
+            <InputField icon="cube-outline" placeholder="Nama Barang" value={itemName} onChangeText={setItemName} />
+
+          <View style={styles.inputGroup}>
+            <MaterialCommunityIcons name="weight-kilogram" size={20} color="#7F8C8D" style={styles.icon} />
+            <TextInput
+              placeholder="Berat Paket (kg)"
+              value={weight}
+              onChangeText={setWeight}
+              keyboardType="numeric"
+              style={styles.input}
+            />
+          </View>
 
           <InputField icon="document-text-outline" placeholder="Catatan untuk Kurir" value={notes} onChangeText={setNotes} multiline />
         </FormSection>
@@ -148,9 +180,20 @@ const NextDayScreen = ({ navigation }) => {
         {/* RINGKASAN */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Text style={styles.totalLabel}>Total Biaya</Text>
+            <Text style={styles.summaryLabel}>Estimasi Biaya</Text>
+            <Text style={styles.summaryValue}>Rp {calculatedPrice.base}</Text>
+          </View>
 
-            <Text style={styles.totalValue}>Rp 28.000</Text>
+          <View style={styles.divider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Biaya Next Day</Text>
+            <Text style={styles.summaryDiscount}>Rp {calculatedPrice.nextDayFee}</Text>
+          </View>
+
+          <View style={styles.divider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.totalLabel}>Total Pembayaran</Text>
+            <Text style={styles.totalValue}>Rp {calculatedPrice.total}</Text>
           </View>
         </View>
 
@@ -255,6 +298,30 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginBottom: 10,
+  },
+
+  summaryLabel: {
+    fontSize: 16,
+    color: "#7F8C8D",
+  },
+
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#2C3E50",
+  },
+
+  summaryDiscount: {
+    fontSize: 16,
+    color: "#FF6B00",
+    fontWeight: "600",
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: "#ECF0F1",
+    marginVertical: 12,
   },
 
   totalLabel: {

@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import api from "../services/api";
 
 const FormSection = ({ title, children }) => (
@@ -71,6 +71,31 @@ const SamedayScreen = ({ navigation }) => {
 
   const [loading, setLoading] = useState(false);
 
+  const PRICE_PER_KG_SAMEDAY = 15000;
+  const SAMEDAY_FEE = 10000;
+
+  const calculatedPrice = useMemo(() => {
+    const actualWeight = parseFloat(weight.toString().replace(",", "."));
+    const effectiveWeight = Math.max(Number.isFinite(actualWeight) ? actualWeight : 0, 1);
+    const roundedWeight = effectiveWeight > 1 ? Math.ceil(effectiveWeight / 0.3) * 0.3 : 1;
+    const base = Number((roundedWeight * PRICE_PER_KG_SAMEDAY).toFixed(0));
+
+    return {
+      billedWeight: Number(roundedWeight.toFixed(1)),
+      base,
+      sameDayFee: SAMEDAY_FEE,
+      total: base + SAMEDAY_FEE,
+    };
+  }, [weight]);
+
+  const paymentDetails = {
+    serviceName: "Same Day",
+    basePrice: calculatedPrice.base.toString(),
+    discount: calculatedPrice.sameDayFee.toString(),
+    total: calculatedPrice.total.toString(),
+    successScreen: "PaymentSuccessScreen",
+  };
+
   const handleSubmit = async () => {
     if (
       !senderName ||
@@ -98,8 +123,8 @@ const SamedayScreen = ({ navigation }) => {
         receiver_alamat: receiverAddress,
 
         service_id: 1, // Sameday
-        berat: parseFloat(weight),
-        harga: 35000,
+        berat: calculatedPrice.billedWeight,
+        harga: calculatedPrice.total,
         jenis_barang: "Paket",
         catatan: notes,
       });
@@ -108,7 +133,7 @@ const SamedayScreen = ({ navigation }) => {
 
       Alert.alert("Berhasil", "Pesanan berhasil dibuat");
 
-      navigation.navigate("OrderScreen");
+      navigation.navigate("PaymentScreen", paymentDetails);
     } catch (error) {
       console.log(
         "ERROR:",
@@ -233,7 +258,27 @@ const SamedayScreen = ({ navigation }) => {
               Estimasi Biaya
             </Text>
             <Text style={styles.summaryValue}>
-              Rp 35.000
+              Rp {calculatedPrice.base}
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>
+              Biaya Same Day
+            </Text>
+            <Text style={styles.summaryDiscount}>
+              Rp {calculatedPrice.sameDayFee}
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.totalLabel}>
+              Total Pembayaran
+            </Text>
+            <Text style={styles.totalValue}>
+              Rp {calculatedPrice.total}
             </Text>
           </View>
         </View>
@@ -342,6 +387,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#2C3E50",
+  },
+
+  summaryDiscount: {
+    fontSize: 16,
+    color: "#FF6B00",
+    fontWeight: "600",
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: "#ECF0F1",
+    marginVertical: 12,
+  },
+
+  totalLabel: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#2C3E50",
+  },
+
+  totalValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FF6B00",
   },
 
   submitButton: {

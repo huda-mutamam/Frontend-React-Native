@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Switch, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -27,6 +27,35 @@ const PickupScreen = ({ navigation }) => {
   const [itemType, setItemType] = useState("paket");
 
   const [loading, setLoading] = useState(false);
+
+  const SERVICE_RATES = {
+    Reguler: { perKg: 10000, fee: 5000, minWeight: 1 },
+    Sameday: { perKg: 15000, fee: 10000, minWeight: 1 },
+    "Next Day": { perKg: 12000, fee: 7000, minWeight: 1 },
+    Dokumen: { perKg: 10000, fee: 5000, minWeight: 1 },
+    Cargo: { perKg: 7000, fee: 15000, minWeight: 10 },
+  };
+
+  const calculatedPrice = useMemo(() => {
+    const rates = SERVICE_RATES[serviceType] || SERVICE_RATES.Reguler;
+    const actual = parseFloat((weight || "").toString().replace(',', '.')) || 0;
+    const minW = rates.minWeight || 1;
+    let billed = Math.max(actual, minW);
+
+    if (serviceType === 'Cargo') {
+      billed = Math.ceil(billed); // round up to whole kg for cargo
+    } else {
+      billed = Math.ceil(billed / 0.3) * 0.3; // round up to 0.3 kg
+    }
+
+    // normalize billed weight display
+    const billedNormalized = serviceType === 'Cargo' ? Math.ceil(billed) : Number(billed.toFixed(1));
+
+    const base = billedNormalized * rates.perKg;
+    const total = base + rates.fee;
+
+    return { billedWeight: billedNormalized, base, fee: rates.fee, total };
+  }, [weight, serviceType]);
 
   const onDateChange = (event, selectedDate) => {
     const currentDate = selectedDate || date;
@@ -65,6 +94,10 @@ const PickupScreen = ({ navigation }) => {
         serviceId = 1;
       } else if (serviceType === "Next Day") {
         serviceId = 3;
+      } else if (serviceType === "Dokumen") {
+        serviceId = 5; // adjust if backend uses different id
+      } else if (serviceType === "Cargo") {
+        serviceId = 4;
       }
 
       const response = await api.post("/orders", {
@@ -73,8 +106,8 @@ const PickupScreen = ({ navigation }) => {
         receiver_nama: receiverName,
         receiver_alamat: receiverAddress,
         service_id: serviceId,
-        berat: weight,
-        harga: 25000,
+        berat: calculatedPrice.billedWeight,
+        harga: calculatedPrice.total,
         jenis_barang: itemType,
       });
 
@@ -284,29 +317,33 @@ const PickupScreen = ({ navigation }) => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Jenis Layanan</Text>
 
-          <View style={styles.serviceSelector}>
-            {["Reguler", "Sameday", "Next Day"].map((service) => (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.serviceSelector}
+          >
+            {["Reguler", "Sameday", "Next Day", "Dokumen", "Cargo"].map((service) => (
               <TouchableOpacity
                 key={service}
                 style={[
                   styles.serviceButton,
-                  serviceType === service &&
-                  styles.activeServiceButton,
+                  serviceType === service && styles.activeServiceButton,
                 ]}
                 onPress={() => setServiceType(service)}
               >
                 <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                   style={[
                     styles.serviceButtonText,
-                    serviceType === service &&
-                    styles.activeServiceButtonText,
+                    serviceType === service && styles.activeServiceButtonText,
                   ]}
                 >
                   {service}
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         </View>
 
         {/* ASURANSI */}
@@ -328,13 +365,13 @@ const PickupScreen = ({ navigation }) => {
         {/* BIAYA */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Text style={styles.totalLabel}>
-              Estimasi Biaya
-            </Text>
+            <Text style={styles.totalLabel}>Berat Tertagih</Text>
+            <Text style={styles.totalValue}>{calculatedPrice.billedWeight} kg</Text>
+          </View>
 
-            <Text style={styles.totalValue}>
-              Rp 25.000
-            </Text>
+          <View style={[styles.summaryRow, { marginTop: 8 }]}>
+            <Text style={styles.totalLabel}>Estimasi Biaya</Text>
+            <Text style={styles.totalValue}>Rp {calculatedPrice.total.toLocaleString('id-ID')}</Text>
           </View>
         </View>
 
@@ -427,17 +464,27 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
   },
   serviceSelector: {
-    flexDirection: 'row', justifyContent: 'space-between',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
   },
   serviceButton: {
-    flex: 1, paddingVertical: 12, borderRadius: 8,
-    backgroundColor: '#F0F0F0', alignItems: 'center', marginHorizontal: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#F0F0F0',
+    alignItems: 'center',
+    marginHorizontal: 6,
+    marginBottom: 8,
+    minWidth: 80,
   },
   activeServiceButton: {
     backgroundColor: '#FF6B00',
   },
   serviceButtonText: {
-    fontSize: 14, color: '#2C3E50', fontWeight: 'bold',
+    fontSize: 13,
+    color: '#2C3E50',
+    fontWeight: 'bold',
   },
   activeServiceButtonText: {
     color: '#FFFFFF',

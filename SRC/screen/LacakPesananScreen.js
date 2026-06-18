@@ -1,16 +1,10 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import api from "../services/api";
 
-// Data dummy untuk timeline pelacakan
-const trackingHistory = [
-  { status: 'Paket dijemput kurir', location: 'Jakarta Pusat', time: '28 Nov 2025, 14:30', isCompleted: true },
-  { status: 'Paket tiba di hub sortir', location: 'Jakarta', time: '28 Nov 2025, 17:00', isCompleted: true },
-  { status: 'Paket sedang dalam perjalanan', location: 'Menuju Bandung', time: '28 Nov 2025, 19:00', isCompleted: true },
-  { status: 'Paket tiba di hub Bandung', location: 'Bandung', time: '29 Nov 2025, 08:00', isCompleted: false },
-  { status: 'Kurir sedang mengantar paket', location: 'Menuju alamat Anda', time: '29 Nov 2025, 09:00', isCompleted: false },
-];
+// trackingHistory will be loaded from API
 
 const TrackingItem = ({ item, isLast }) => (
   <View style={styles.trackingItem}>
@@ -30,6 +24,60 @@ const LacakPesananScreen = ({ route, navigation }) => {
   // Ambil orderId dan service dari parameter navigasi
   const { orderId = 'N/A', service = 'Layanan' } = route.params || {};
 
+  const [trackingHistory, setTrackingHistory] = useState([]);
+  const [orderInfo, setOrderInfo] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchTracking = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get(`/orders/${orderId}/tracking`);
+        const data = response.data || {};
+
+        // Try common response shapes
+        const history = data.trackingHistory || data.history || data.tracking || (Array.isArray(data) ? data : []);
+        if (isMounted) setTrackingHistory(Array.isArray(history) ? history : []);
+
+        // order info (resi/service) fallback to route params
+        const info = data.order || data.orderInfo || null;
+        if (isMounted) setOrderInfo(info);
+      } catch (err) {
+        console.log('TRACKING FETCH ERROR', err);
+        Alert.alert('Gagal', 'Gagal mengambil data pelacakan');
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchTracking();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [orderId]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Lacak Pesanan</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#FF6B00" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -46,20 +94,24 @@ const LacakPesananScreen = ({ route, navigation }) => {
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>No. Resi</Text>
-            <Text style={styles.infoValue}>{orderId}</Text>
+            <Text style={styles.infoValue}>{orderInfo?.resi || orderInfo?.orderId || orderId}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Layanan</Text>
-            <Text style={styles.infoValue}>{service}</Text>
+            <Text style={styles.infoValue}>{orderInfo?.service || service}</Text>
           </View>
         </View>
 
         {/* Timeline Pelacakan */}
         <View style={styles.trackingContainer}>
           <Text style={styles.sectionTitle}>Riwayat Perjalanan</Text>
-          {trackingHistory.map((item, index) => (
-            <TrackingItem key={index} item={item} isLast={index === trackingHistory.length - 1} />
-          ))}
+          {trackingHistory.length === 0 ? (
+            <Text>Belum ada riwayat perjalanan untuk pesanan ini.</Text>
+          ) : (
+            trackingHistory.map((item, index) => (
+              <TrackingItem key={index} item={item} isLast={index === trackingHistory.length - 1} />
+            ))
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

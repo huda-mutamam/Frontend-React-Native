@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert, ActivityIndicator } from "react-native";
 
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import api from "../services/api";
 
 const FormSection = ({ title, children }) => (
@@ -26,14 +26,32 @@ const DokumenScreen = ({ navigation }) => {
   // DOKUMEN
   const [documentType, setDocumentType] = useState("");
   const [securityNote, setSecurityNote] = useState("");
+  const [weight, setWeight] = useState("");
 
   const [loading, setLoading] = useState(false);
 
+  const PRICE_PER_KG = 10000;
+  const DOCUMENT_FEE = 5000;
+
+  const calculatedPrice = useMemo(() => {
+    const actualWeight = parseFloat(weight.toString().replace(",", "."));
+    const effectiveWeight = Math.max(Number.isFinite(actualWeight) ? actualWeight : 0, 1);
+    const roundedWeight = effectiveWeight > 1 ? Math.ceil(effectiveWeight / 0.3) * 0.3 : 1;
+    const base = roundedWeight * PRICE_PER_KG;
+
+    return {
+      billedWeight: Number(roundedWeight.toFixed(1)),
+      base,
+      documentFee: DOCUMENT_FEE,
+      total: base + DOCUMENT_FEE,
+    };
+  }, [weight]);
+
   const paymentDetails = {
     serviceName: "Pengiriman Dokumen",
-    basePrice: "15.000",
-    discount: "0",
-    total: "15.000",
+    basePrice: calculatedPrice.base.toString(),
+    discount: calculatedPrice.documentFee.toString(),
+    total: calculatedPrice.total.toString(),
     successScreen: "PaymentSuccessScreen",
   };
 
@@ -56,8 +74,8 @@ const DokumenScreen = ({ navigation }) => {
         receiver_alamat: receiverAddress,
 
         service_id: 3,
-        berat: 1,
-        harga: 15000,
+        berat: calculatedPrice.billedWeight,
+        harga: calculatedPrice.total,
         jenis_barang: documentType,
         catatan: securityNote,
       });
@@ -159,6 +177,17 @@ const DokumenScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.inputGroup}>
+            <MaterialCommunityIcons name="weight-kilogram" size={20} color="#7F8C8D" style={styles.icon} />
+            <TextInput
+              placeholder="Berat Dokumen (kg)"
+              value={weight}
+              onChangeText={setWeight}
+              keyboardType="numeric"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
             <Ionicons name="shield-checkmark-outline" size={20} color="#7F8C8D" style={styles.icon} />
             <TextInput placeholder="Catatan Keamanan (Opsional)" value={securityNote} onChangeText={setSecurityNote} style={styles.input} />
           </View>
@@ -166,6 +195,20 @@ const DokumenScreen = ({ navigation }) => {
 
         {/* RINGKASAN */}
         <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Estimasi Biaya</Text>
+            <Text style={styles.summaryValue}>Rp {calculatedPrice.base}</Text>
+          </View>
+
+          {calculatedPrice.documentFee > 0 && <View style={styles.divider} />}
+          {calculatedPrice.documentFee > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Biaya Dokumen</Text>
+              <Text style={styles.summaryDiscount}>Rp {calculatedPrice.documentFee}</Text>
+            </View>
+          )}
+
+          <View style={styles.divider} />
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total Pembayaran</Text>
             <Text style={styles.totalValue}>Rp {paymentDetails.total}</Text>
@@ -255,6 +298,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+
+  summaryLabel: {
+    fontSize: 16,
+    color: "#2C3E50",
+  },
+
+  summaryValue: {
+    fontSize: 16,
+    color: "#2C3E50",
+    fontWeight: "600",
+  },
+
+  summaryDiscount: {
+    fontSize: 16,
+    color: "#FF6B00",
+    fontWeight: "600",
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: "#ECF0F1",
+    marginVertical: 12,
   },
 
   totalLabel: {

@@ -1,9 +1,10 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import api from "../services/api";
 
-// Komponen untuk setiap baris menu
 const ProfileMenuItem = ({ icon, text, onPress, isLogout = false }) => (
   <TouchableOpacity style={styles.menuItem} onPress={onPress}>
     <View style={[styles.menuIconContainer, isLogout && { backgroundColor: '#FFEBEB' }]}>
@@ -15,6 +16,87 @@ const ProfileMenuItem = ({ icon, text, onPress, isLogout = false }) => (
 );
 
 const ProfileScreen = ({ navigation }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await api.get('/profile');
+      setUser(response.data.data || response.data);
+    } catch (error) {
+      console.log("PROFILE FETCH ERROR", error.response?.data || error.message);
+      Alert.alert("Gagal", "Tidak dapat memuat data profil");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const handlePickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Izin diperlukan", "Aktifkan izin akses galeri untuk mengganti foto profil");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      uploadAvatar(result.assets[0]);
+    }
+  };
+
+  const uploadAvatar = async (asset) => {
+    try {
+      setUploading(true);
+
+      const formData = new FormData();
+      formData.append('avatar', {
+        uri: asset.uri,
+        name: 'avatar.jpg',
+        type: 'image/jpeg',
+      });
+
+      const response = await api.post('/profile?_method=PUT', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setUser(response.data.data);
+      Alert.alert("Berhasil", "Foto profil berhasil diperbarui");
+    } catch (error) {
+      console.log("UPLOAD AVATAR ERROR", error.response?.data || error.message);
+      Alert.alert("Gagal", "Tidak dapat mengunggah foto profil");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Profil Saya</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#FF6B00" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -23,7 +105,6 @@ const ProfileScreen = ({ navigation }) => {
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profil Saya</Text>
-        {/* Placeholder untuk menyeimbangkan judul di tengah */}
         <View style={{ width: 24 }} />
       </View>
 
@@ -31,13 +112,23 @@ const ProfileScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         {/* Profile Info Section */}
         <View style={styles.profileSection}>
-          <Image
-            source={{ uri: 'https://i.imgur.com/8v4Hw2j.png' }} // Placeholder avatar
-            style={styles.avatar}
-          />
-          <Text style={styles.profileName}>Dimas Ulinuha</Text>
-          <Text style={styles.profileEmail}>dimas.ulinuha@example.com</Text>
-          <TouchableOpacity style={styles.editProfileButton} onPress={() => navigation.navigate('EditProfileScreen')}>
+          <TouchableOpacity onPress={handlePickImage} disabled={uploading}>
+            <Image
+              source={{ uri: user?.avatar || 'https://i.imgur.com/8v4Hw2j.png' }}
+              style={styles.avatar}
+            />
+            <View style={styles.editAvatarBadge}>
+              {uploading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="camera" size={16} color="#FFFFFF" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <Text style={styles.profileName}>{user?.name || 'Pengguna'}</Text>
+          <Text style={styles.profileEmail}>{user?.email || '-'}</Text>
+          <TouchableOpacity style={styles.editProfileButton} onPress={() => navigation.navigate('EditProfileScreen', { user })}>
             <Text style={styles.editProfileText}>Edit Profil</Text>
           </TouchableOpacity>
         </View>
@@ -91,6 +182,19 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     borderWidth: 3,
     borderColor: '#FF6B00',
+  },
+  editAvatarBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#FF6B00',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   profileName: {
     fontSize: 22,

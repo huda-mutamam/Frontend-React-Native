@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -37,12 +37,29 @@ const KargoScreen = ({ navigation }) => {
 
   const [loading, setLoading] = useState(false);
   
+  const PRICE_PER_KG_KARGO = 7000;
+  const KARGO_FEE = 15000;
+
+  const calculatedPrice = useMemo(() => {
+    const actualWeight = parseFloat(berat.toString().replace(",", "."));
+    const effectiveWeight = Math.max(Number.isFinite(actualWeight) ? actualWeight : 0, 10);
+    const billedWeight = Math.ceil(effectiveWeight);
+    const base = Number((billedWeight * PRICE_PER_KG_KARGO).toFixed(0));
+
+    return {
+      billedWeight,
+      base,
+      kargoFee: KARGO_FEE,
+      total: base + KARGO_FEE,
+    };
+  }, [berat]);
+
   const paymentDetails = {
     serviceName: "Pengiriman Kargo",
-    basePrice: "150.000", // Harga contoh untuk kargo
-    discount: "0",
-    total: "150.000",
-    successScreen: "PaymentSuccessScreen", // Halaman tujuan setelah bayar
+    basePrice: calculatedPrice.base.toString(),
+    discount: calculatedPrice.kargoFee.toString(),
+    total: calculatedPrice.total.toString(),
+    successScreen: "PaymentSuccessScreen",
   };
 
   const handleSubmit = async () => {
@@ -64,8 +81,8 @@ const KargoScreen = ({ navigation }) => {
         receiver_alamat: receiverAddress,
 
         service_id: 4,
-        berat: parseFloat(berat),
-        harga: 150000,
+        berat: calculatedPrice.billedWeight,
+        harga: calculatedPrice.total,
         jenis_barang: jenisMuatan,
       });
 
@@ -73,7 +90,7 @@ const KargoScreen = ({ navigation }) => {
 
       Alert.alert("Berhasil", "Pesanan kargo berhasil dibuat");
 
-      navigation.navigate("OrderScreen");
+      navigation.navigate("PaymentScreen", paymentDetails);
     } catch (error) {
       console.log(error.response?.data || error.message);
 
@@ -130,7 +147,8 @@ const KargoScreen = ({ navigation }) => {
         <FormSection title="Detail Muatan">
           <InputField icon="package-variant-closed" placeholder="Jenis Muatan" iconFamily="MaterialCommunityIcons" value={jenisMuatan} onChangeText={setJenisMuatan} />
 
-          <InputField icon="weight-kilogram" placeholder="Total Berat (kg)" keyboardType="numeric" iconFamily="MaterialCommunityIcons" value={berat} onChangeText={setBerat} />
+          <InputField icon="weight-kilogram" placeholder="Total Berat (kg) - min 10 kg" keyboardType="numeric" iconFamily="MaterialCommunityIcons" value={berat} onChangeText={setBerat} />
+          <Text style={styles.helperText}>Berat minimal 10 kg, dibulatkan ke atas ke kg terdekat.</Text>
 
           <Text style={styles.subTitle}>Dimensi (Panjang x Lebar x Tinggi) dalam cm</Text>
 
@@ -151,9 +169,20 @@ const KargoScreen = ({ navigation }) => {
         {/* RINGKASAN */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Text style={styles.totalLabel}>Estimasi Biaya</Text>
+            <Text style={styles.summaryLabel}>Estimasi Biaya</Text>
+            <Text style={styles.summaryValue}>Rp {calculatedPrice.base}</Text>
+          </View>
 
-            <Text style={styles.totalValue}>Rp 150.000</Text>
+          <View style={styles.divider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Biaya Handling Kargo</Text>
+            <Text style={styles.summaryDiscount}>Rp {calculatedPrice.kargoFee}</Text>
+          </View>
+
+          <View style={styles.divider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.totalLabel}>Total Pembayaran</Text>
+            <Text style={styles.totalValue}>Rp {calculatedPrice.total}</Text>
           </View>
         </View>
 
@@ -244,6 +273,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 10,
+  },
+  summaryLabel: {
+    fontSize: 16,
+    color: "#7F8C8D",
+  },
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#2C3E50",
+  },
+  summaryDiscount: {
+    fontSize: 16,
+    color: "#FF6B00",
+    fontWeight: "600",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#ECF0F1",
+    marginVertical: 12,
   },
   totalLabel: {
     fontSize: 18,
@@ -254,6 +303,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#FF6B00",
     fontWeight: "bold",
+  },
+  helperText: {
+    fontSize: 13,
+    color: "#7F8C8D",
+    marginBottom: 10,
   },
   submitButton: {
     backgroundColor: "#FF6B00",
