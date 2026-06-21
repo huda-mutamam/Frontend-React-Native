@@ -49,6 +49,7 @@ import EditProfileScreen from '../screen/EditProfileScreen';
 import UbahKataSandiScreen from '../screen/UbahKataSandiScreen';
 import BahasaScreen from '../screen/BahasaScreen';
 import LupaSandiScreen from '../screen/LupaSandiScreen';
+import EditOrderScreen from '../screen/EditOrderScreen'
 
 const Stack = createStackNavigator();
 
@@ -83,6 +84,7 @@ const AppStack = () => {
       <Stack.Screen name="TagihanSayaScreen" component={TagihanSayaScreen} />
       <Stack.Screen name="PelacakanInternasionalScreen" component={PelacakanInternasionalScreen} />
       <Stack.Screen name="OrderScreen" component={OrderScreen} />
+      <Stack.Screen name="EditOrderScreen" component={EditOrderScreen} />
       <Stack.Screen name="MembershipScreen" component={MembershipScreen} />
       <Stack.Screen name="ChatScreen" component={ChatScreen} />
       <Stack.Screen name="ChatDetailScreen" component={ChatDetailScreen} />
