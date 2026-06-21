@@ -6,7 +6,7 @@ import api from "../services/api";
 
 // ================= CARD =================
 const OrderCard = ({ order, navigation, onDelete }) => {
-  // Edit & Hapus hanya boleh muncul kalau status masih "pending"
+  // Edit & Hapus hanya boleh muncul kalau status masih "menunggu"
   const canModify = order.status === "Menunggu";
 
   return (
@@ -105,8 +105,8 @@ const OrderScreen = ({ navigation }) => {
     return unsubscribe;
   }, [navigation]);
 
-  // FILTER
-  const filteredOrders = (orders || []).filter((o) => (activeTab === "Aktif" ? o.status !== "Selesai" : o.status === "Selesai"));
+  // FILTER — sesuaikan dengan nilai status asli di database Anda
+  const filteredOrders = (orders || []).filter((o) => (activeTab === "Aktif" ? o.status !== "Sampai" : o.status === "Sampai"));
 
   return (
     <SafeAreaView style={styles.container}>
